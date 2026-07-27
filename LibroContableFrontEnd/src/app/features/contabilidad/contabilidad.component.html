@@ -1,0 +1,513 @@
+<main class="shell">
+  <aside class="sidebar" aria-label="Menu principal">
+    <div class="brand">
+      <span class="brand-mark">LC</span>
+      <div>
+        <strong>LibroContable</strong>
+        <small>Gestion financiera</small>
+      </div>
+    </div>
+
+    <nav class="nav-list" aria-label="Secciones">
+      <a class="nav-item active" href="#dashboard">
+        <span class="nav-icon">01</span>
+        Dashboard
+      </a>
+      <a class="nav-item" href="#movimientos">
+        <span class="nav-icon">02</span>
+        Movimientos
+      </a>
+      <a class="nav-item" href="#reporte">
+        <span class="nav-icon">03</span>
+        Reportes
+      </a>
+    </nav>
+  </aside>
+
+  <section class="workspace" id="dashboard">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Modulo contable</p>
+        <h1>Dashboard financiero</h1>
+      </div>
+
+      <div class="toolbar">
+        <label class="period-filter">
+          <span>Mes</span>
+          <select #mesSelect [value]="selectedMesId || ''" (change)="onMesSeleccionado(mesSelect.value)" [disabled]="dashboardLoading || !meses.length">
+            <option value="" disabled>Sin periodos</option>
+            <option *ngFor="let mes of meses; trackBy: trackById" [value]="mes.id">
+              {{ mes.periodo }} - {{ mes.estado }}
+            </option>
+          </select>
+        </label>
+
+        <button class="secondary-button" type="button" (click)="abrirCrearMes()">
+          <span class="button-icon">+</span>
+          Mes
+        </button>
+        <button class="primary-button action-button" type="button" (click)="abrirCrearMovimiento()" [disabled]="!selectedMesId || mesCerrado">
+          <span class="button-icon">+</span>
+          Movimiento
+        </button>
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="Resumen financiero">
+      <article class="metric">
+        <span>Periodo activo</span>
+        <strong>{{ periodoActual }}</strong>
+      </article>
+      <article class="metric">
+        <span>Saldo inicial</span>
+        <strong>{{ saldoInicial | currency:'PEN':'S/ ' }}</strong>
+      </article>
+      <article class="metric">
+        <span>Saldo disponible</span>
+        <strong>{{ saldoDisponible | currency:'PEN':'S/ ' }}</strong>
+      </article>
+      <article class="metric">
+        <span>Total gastado</span>
+        <strong>{{ totalGastado | currency:'PEN':'S/ ' }}</strong>
+      </article>
+      <article class="metric state-metric">
+        <span>Estado del mes</span>
+        <strong class="state-badge" [class.closed]="mesCerrado">{{ selectedMes?.estado || 'SIN MES' }}</strong>
+      </article>
+      <article class="metric">
+        <span>Movimientos</span>
+        <strong>{{ movimientos.length }}</strong>
+      </article>
+    </section>
+
+    <div class="notice" [class.success]="notice.type === 'success'" [class.error]="notice.type === 'error'">
+      <span class="notice-icon">{{ notice.type === 'success' ? 'OK' : notice.type === 'error' ? '!' : 'i' }}</span>
+      <div>
+        <strong>{{ notice.title }}</strong>
+        <p>{{ notice.message }}</p>
+      </div>
+    </div>
+
+    <section class="panel action-panel">
+      <div>
+        <p class="eyebrow">Gestion del periodo</p>
+        <h2>{{ selectedMes?.periodo || 'Sin periodo seleccionado' }}</h2>
+      </div>
+      <div class="period-actions">
+        <button class="secondary-button" type="button" (click)="abrirActualizarSaldoInicial()" [disabled]="!selectedMesId || mesCerrado || accionLoading">
+          Editar saldo inicial
+        </button>
+        <button class="danger-button subtle-danger" type="button" (click)="confirmarCerrarMes()" [disabled]="!selectedMesId || mesCerrado || accionLoading">
+          {{ mesCerrado ? 'Mes cerrado' : 'Cerrar mes' }}
+        </button>
+        <button class="secondary-button" type="button" (click)="confirmarReabrirMes()" [disabled]="!puedeReabrirMes || accionLoading">
+          Reabrir mes
+        </button>
+        <button class="danger-button" type="button" (click)="confirmarEliminarMes()" [disabled]="!selectedMesId || accionLoading">
+          Eliminar periodo
+        </button>
+      </div>
+    </section>
+
+    <section class="panel report-panel" id="movimientos">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Operaciones</p>
+          <h2>Movimientos del mes {{ periodoActual }}</h2>
+        </div>
+        <span class="tag">GET /movimientos</span>
+      </div>
+
+      <div class="table-wrap" *ngIf="!movimientosLoading && movimientos.length">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Descripcion</th>
+              <th>Categoria</th>
+              <th class="amount-cell">Monto</th>
+              <th class="actions-cell">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let movimiento of movimientos; trackBy: trackById">
+              <td>{{ movimiento.fechaGasto | date:'dd/MM/yyyy' }}</td>
+              <td>{{ movimiento.descripcion }}</td>
+              <td><span class="category-chip">{{ movimiento.categoria }}</span></td>
+              <td class="amount-cell">{{ movimiento.monto | currency:'PEN':'S/ ' }}</td>
+              <td class="actions-cell">
+                <button class="table-button" type="button" (click)="abrirEditarMovimiento(movimiento)" [disabled]="mesCerrado">Editar</button>
+                <button class="table-button danger" type="button" (click)="confirmarEliminar(movimiento)" [disabled]="mesCerrado">Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="empty-state" *ngIf="movimientosLoading">
+        Consultando movimientos...
+      </div>
+
+      <div class="empty-state" *ngIf="!movimientosLoading && selectedMesId && !movimientos.length">
+        No hay movimientos registrados para este mes.
+      </div>
+
+      <div class="empty-state" *ngIf="!movimientosLoading && !selectedMesId">
+        Crea o selecciona un mes financiero para ver el listado.
+      </div>
+    </section>
+
+    <section class="panel report-panel" id="reporte">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Reporte mensual</p>
+          <h2>{{ reporteModo }}</h2>
+        </div>
+        <span class="tag">GET /reportes</span>
+      </div>
+
+      <form class="filters-grid" [formGroup]="reporteForm">
+        <label class="field compact">
+          <span>Mes</span>
+          <select formControlName="mesId">
+            <option value="">Todos los meses</option>
+            <option *ngFor="let mes of meses; trackBy: trackById" [value]="mes.id">{{ mes.periodo }}</option>
+          </select>
+        </label>
+
+        <label class="field compact">
+          <span>Categoria</span>
+          <select formControlName="categoria">
+            <option value="">Todas</option>
+            <option *ngFor="let categoria of categorias" [value]="categoria">{{ categoria }}</option>
+          </select>
+        </label>
+
+        <label class="field compact">
+          <span>Desde</span>
+          <input type="date" formControlName="fechaInicio">
+        </label>
+
+        <label class="field compact">
+          <span>Hasta</span>
+          <input type="date" formControlName="fechaFin">
+        </label>
+
+        <label class="field compact">
+          <span>Monto min.</span>
+          <input type="number" min="0" step="0.01" formControlName="montoMin">
+        </label>
+
+        <label class="field compact">
+          <span>Monto max.</span>
+          <input type="number" min="0" step="0.01" formControlName="montoMax">
+        </label>
+
+        <button class="ghost-button filter-clear" type="button" (click)="limpiarFiltrosReporte()">Limpiar</button>
+      </form>
+
+      <section class="summary-grid report-summary" aria-label="Resumen del reporte">
+        <article class="metric">
+          <span>Saldo inicial</span>
+          <strong>{{ reporteSaldoInicial | currency:'PEN':'S/ ' }}</strong>
+        </article>
+        <article class="metric">
+          <span>Total gastado</span>
+          <strong>{{ reporteTotalGastado | currency:'PEN':'S/ ' }}</strong>
+        </article>
+        <article class="metric">
+          <span>Saldo final</span>
+          <strong>{{ reporteSaldoFinal | currency:'PEN':'S/ ' }}</strong>
+        </article>
+        <article class="metric">
+          <span>Movimientos filtrados</span>
+          <strong>{{ reporteMovimientosCantidad }}</strong>
+        </article>
+      </section>
+
+      <div class="empty-state" *ngIf="reporteLoading">
+        Generando reporte...
+      </div>
+
+      <div class="report-groups" *ngIf="!reporteLoading && reporteMeses.length">
+        <article class="report-group" *ngFor="let mesReporte of reporteMeses; trackBy: trackById">
+          <header class="report-group-header">
+            <div>
+              <strong>{{ mesReporte.periodo }}</strong>
+              <span class="state-badge small" [class.closed]="mesReporte.estado === 'CERRADO'">{{ mesReporte.estado }}</span>
+            </div>
+            <div class="report-totals">
+              <span>{{ mesReporte.totalMovimientosFiltrados | currency:'PEN':'S/ ' }}</span>
+              <small>{{ mesReporte.cantidadMovimientos }} movimientos</small>
+            </div>
+          </header>
+
+          <div class="table-wrap compact-table" *ngIf="mesReporte.movimientos.length">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Descripcion</th>
+                  <th>Categoria</th>
+                  <th class="amount-cell">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let movimiento of mesReporte.movimientos; trackBy: trackById">
+                  <td>{{ movimiento.fechaGasto | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ movimiento.descripcion }}</td>
+                  <td><span class="category-chip">{{ movimiento.categoria }}</span></td>
+                  <td class="amount-cell">{{ movimiento.monto | currency:'PEN':'S/ ' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="empty-state small-empty" *ngIf="!mesReporte.movimientos.length">
+            No hay movimientos para los filtros aplicados.
+          </div>
+        </article>
+      </div>
+    </section>
+  </section>
+</main>
+
+<div class="modal-backdrop" *ngIf="modal" (click)="!accionLoading && cerrarModal()"></div>
+
+<section class="modal" *ngIf="modal === 'mes'" role="dialog" aria-modal="true" aria-labelledby="mes-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow">Nuevo periodo</p>
+      <h2 id="mes-title">Crear mes financiero</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar">x</button>
+  </div>
+
+  <form [formGroup]="mesForm" (ngSubmit)="crearMes()">
+    <label class="field">
+      <span>Periodo</span>
+      <input type="month" formControlName="periodo">
+      <small *ngIf="fieldInvalid('mes', 'periodo')">Usa el formato yyyy-MM.</small>
+    </label>
+
+    <label class="field">
+      <span>Saldo inicial a ingresar</span>
+      <input type="number" min="0.01" step="0.01" formControlName="saldoInicial" placeholder="0.00">
+      <small *ngIf="fieldInvalid('mes', 'saldoInicial')">Ingresa un saldo mayor que cero.</small>
+    </label>
+
+    <dl class="balance-preview">
+      <div>
+        <dt>Saldo disponible anterior</dt>
+        <dd>{{ saldoDisponibleMesAnteriorNuevoMes | currency:'PEN':'S/ ' }}</dd>
+      </div>
+      <div>
+        <dt>Saldo inicial final</dt>
+        <dd>{{ saldoInicialCalculadoNuevoMes | currency:'PEN':'S/ ' }}</dd>
+      </div>
+    </dl>
+
+    <div class="modal-actions">
+      <button class="ghost-button" type="button" (click)="cerrarModal()">Cancelar</button>
+      <button class="primary-button" type="submit" [disabled]="mesLoading">
+        {{ mesLoading ? 'Creando...' : 'Crear mes' }}
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="modal compact-modal" *ngIf="modal === 'saldoInicial'" role="dialog" aria-modal="true" aria-labelledby="saldo-inicial-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow">Periodo {{ selectedMes?.periodo }}</p>
+      <h2 id="saldo-inicial-title">Actualizar saldo inicial</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar" [disabled]="accionLoading">x</button>
+  </div>
+
+  <form [formGroup]="saldoInicialForm" (ngSubmit)="actualizarSaldoInicial()">
+    <label class="field">
+      <span>Nuevo saldo inicial</span>
+      <input type="number" min="0.01" step="0.01" formControlName="saldoInicial" placeholder="0.00">
+      <small *ngIf="fieldInvalid('saldoInicial', 'saldoInicial')">Ingresa un saldo mayor que cero.</small>
+    </label>
+
+    <dl class="balance-preview">
+      <div>
+        <dt>Total gastado</dt>
+        <dd>{{ totalGastado | currency:'PEN':'S/ ' }}</dd>
+      </div>
+      <div>
+        <dt>Saldo disponible actual</dt>
+        <dd>{{ saldoDisponible | currency:'PEN':'S/ ' }}</dd>
+      </div>
+      <div>
+        <dt>Saldo disponible estimado</dt>
+        <dd>{{ ((saldoInicialForm.controls.saldoInicial.value || 0) - totalGastado) | currency:'PEN':'S/ ' }}</dd>
+      </div>
+    </dl>
+
+    <div class="modal-actions">
+      <button class="ghost-button" type="button" (click)="cerrarModal()" [disabled]="accionLoading">Cancelar</button>
+      <button class="primary-button" type="submit" [disabled]="accionLoading">
+        {{ accionLoading ? 'Actualizando...' : 'Actualizar saldo' }}
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="modal" *ngIf="modal === 'movimiento'" role="dialog" aria-modal="true" aria-labelledby="movimiento-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow">{{ movimientoEditando ? 'Editar operacion' : 'Nueva operacion' }}</p>
+      <h2 id="movimiento-title">{{ movimientoEditando ? 'Actualizar movimiento' : 'Registrar movimiento' }}</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar">x</button>
+  </div>
+
+  <form [formGroup]="movimientoForm" (ngSubmit)="guardarMovimiento()">
+    <div class="form-row">
+      <label class="field">
+        <span>ID del mes</span>
+        <input type="number" min="1" step="1" formControlName="mesId" readonly>
+        <small *ngIf="fieldInvalid('movimiento', 'mesId')">Indica el ID del mes.</small>
+      </label>
+
+      <label class="field">
+        <span>Fecha</span>
+        <input type="date" formControlName="fecha">
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Descripcion</span>
+      <input type="text" formControlName="descripcion" placeholder="Ej. Compra de insumos">
+      <small *ngIf="fieldInvalid('movimiento', 'descripcion')">Ingresa una descripcion de al menos 3 caracteres.</small>
+    </label>
+
+    <div class="form-row">
+      <label class="field">
+        <span>Monto</span>
+        <input type="number" min="0.01" step="0.01" formControlName="monto" placeholder="0.00">
+        <small *ngIf="fieldInvalid('movimiento', 'monto')">Ingresa un monto mayor que cero.</small>
+      </label>
+
+      <label class="field">
+        <span>Categoria</span>
+        <select formControlName="categoria">
+          <option *ngFor="let categoria of categorias" [value]="categoria">{{ categoria }}</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button class="ghost-button" type="button" (click)="cerrarModal()">Cancelar</button>
+      <button class="primary-button" type="submit" [disabled]="movimientoLoading">
+        {{ movimientoLoading ? 'Guardando...' : movimientoEditando ? 'Actualizar' : 'Registrar' }}
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="modal compact-modal" *ngIf="modal === 'eliminar'" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow">Confirmacion</p>
+      <h2 id="delete-title">Eliminar movimiento</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar">x</button>
+  </div>
+
+  <p class="confirm-copy">
+    Se eliminara "{{ movimientoSeleccionado?.descripcion }}" por {{ movimientoSeleccionado?.monto | currency:'PEN':'S/ ' }}.
+  </p>
+
+  <div class="modal-actions">
+    <button class="ghost-button" type="button" (click)="cerrarModal()">Cancelar</button>
+    <button class="danger-button" type="button" (click)="eliminarMovimiento()" [disabled]="accionLoading">
+      {{ accionLoading ? 'Eliminando...' : 'Eliminar' }}
+    </button>
+  </div>
+</section>
+
+<section class="modal compact-modal" *ngIf="modal === 'reabrirMes'" role="dialog" aria-modal="true" aria-labelledby="reopen-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow">Confirmacion</p>
+      <h2 id="reopen-title">Reabrir mes financiero</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar" [disabled]="accionLoading">x</button>
+  </div>
+
+  <p class="confirm-copy">
+    El periodo {{ selectedMes?.periodo }} volvera a estado abierto y aceptara nuevos movimientos, ediciones y eliminaciones.
+  </p>
+
+  <div class="modal-actions">
+    <button class="ghost-button" type="button" (click)="cerrarModal()" [disabled]="accionLoading">Cancelar</button>
+    <button class="primary-button" type="button" (click)="reabrirMes()" [disabled]="accionLoading">
+      {{ accionLoading ? 'Reabriendo...' : 'Reabrir mes' }}
+    </button>
+  </div>
+</section>
+
+<section class="modal compact-modal danger-modal" *ngIf="modal === 'eliminarMes'" role="dialog" aria-modal="true" aria-labelledby="delete-period-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow danger-eyebrow">Eliminacion definitiva</p>
+      <h2 id="delete-period-title">Eliminar periodo {{ mesSeleccionadoParaEliminar?.periodo }}</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar" [disabled]="accionLoading">x</button>
+  </div>
+
+  <div class="destructive-summary">
+    <strong>Esta accion eliminara el periodo y todos sus movimientos.</strong>
+    <p>
+      No se podra recuperar desde la interfaz. Si el periodo esta cerrado, se eliminara igualmente.
+      Deseas continuar?
+    </p>
+  </div>
+
+  <dl class="delete-details">
+    <div>
+      <dt>Periodo</dt>
+      <dd>{{ mesSeleccionadoParaEliminar?.periodo }}</dd>
+    </div>
+    <div>
+      <dt>Estado</dt>
+      <dd>{{ mesSeleccionadoParaEliminar?.estado }}</dd>
+    </div>
+    <div>
+      <dt>Total gastado</dt>
+      <dd>{{ (mesSeleccionadoParaEliminar?.totalGastado || 0) | currency:'PEN':'S/ ' }}</dd>
+    </div>
+  </dl>
+
+  <div class="modal-actions">
+    <button class="ghost-button" type="button" (click)="cerrarModal()" [disabled]="accionLoading">Cancelar</button>
+    <button class="danger-button" type="button" (click)="eliminarMes()" [disabled]="accionLoading">
+      {{ accionLoading ? 'Eliminando periodo...' : 'Eliminar periodo' }}
+    </button>
+  </div>
+</section>
+
+<section class="modal compact-modal" *ngIf="modal === 'cerrarMes'" role="dialog" aria-modal="true" aria-labelledby="close-title">
+  <div class="modal-header">
+    <div>
+      <p class="eyebrow">Confirmacion</p>
+      <h2 id="close-title">Cerrar mes financiero</h2>
+    </div>
+    <button class="icon-button" type="button" (click)="cerrarModal()" aria-label="Cerrar">x</button>
+  </div>
+
+  <p class="confirm-copy">
+    El periodo {{ selectedMes?.periodo }} quedara cerrado y no aceptara nuevos movimientos, ediciones ni eliminaciones.
+  </p>
+
+  <div class="modal-actions">
+    <button class="ghost-button" type="button" (click)="cerrarModal()">Cancelar</button>
+    <button class="danger-button" type="button" (click)="cerrarMes()" [disabled]="accionLoading">
+      {{ accionLoading ? 'Cerrando...' : 'Cerrar mes' }}
+    </button>
+  </div>
+</section>
